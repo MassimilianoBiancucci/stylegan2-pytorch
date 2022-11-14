@@ -350,12 +350,13 @@ class train_args:
         "ckpt": None,
         "lr": 0.002,
         "channel_multiplier": 2,
-        "wandb": False,
-        "augment": True,
+        "wandb": True,
+        "augment": False,
         "augment_p": 0.0,
         "ada_target": 0.6,
         "ada_length": 500*1000,
         "ada_every": 256,
+        "ngpus": 2,
         "wandb_project": "stylegan2",
         "wandb_entity": "deep_learning_team",
         "wandb_mode": "online",
@@ -391,6 +392,8 @@ class train_args:
         self.ada_length = config["ada_length"] # target duraing to reach augmentation probability for adaptive augmentation, default is 50'000 (500*1000)
         self.ada_every = config["ada_every"] # probability update interval of the adaptive augmentation, default is 256
         
+        self.ngpus = config["ngpus"] # number of gpus to use, default is 1
+
         self.wandb_project = config["wandb_project"] # wandb project name, default is None
         self.wandb_entity = config["wandb_entity"] # wandb entity name, default is None
         self.wandb_mode = config["wandb_mode"] # wandb run name, default is None
@@ -404,106 +407,10 @@ class train_args:
 if __name__ == "__main__":
     device = "cuda"
 
-    parser = argparse.ArgumentParser(description="StyleGAN2 trainer")
-
-    parser.add_argument("path", type=str, help="path to the lmdb dataset")
-    parser.add_argument('--arch', type=str, default='stylegan2', help='model architectures (stylegan2 | swagan)')
-    parser.add_argument(
-        "--iter", type=int, default=800000, help="total training iterations"
-    )
-    parser.add_argument(
-        "--batch", type=int, default=16, help="batch sizes for each gpus"
-    )
-    parser.add_argument(
-        "--n_sample",
-        type=int,
-        default=64,
-        help="number of the samples generated during training",
-    )
-    parser.add_argument(
-        "--size", type=int, default=256, help="image sizes for the model"
-    )
-    parser.add_argument(
-        "--r1", type=float, default=10, help="weight of the r1 regularization"
-    )
-    parser.add_argument(
-        "--path_regularize",
-        type=float,
-        default=2,
-        help="weight of the path length regularization",
-    )
-    parser.add_argument(
-        "--path_batch_shrink",
-        type=int,
-        default=2,
-        help="batch size reducing factor for the path length regularization (reduce memory consumption)",
-    )
-    parser.add_argument(
-        "--d_reg_every",
-        type=int,
-        default=16,
-        help="interval of the applying r1 regularization",
-    )
-    parser.add_argument(
-        "--g_reg_every",
-        type=int,
-        default=4,
-        help="interval of the applying path length regularization",
-    )
-    parser.add_argument(
-        "--mixing", type=float, default=0.9, help="probability of latent code mixing"
-    )
-    parser.add_argument(
-        "--ckpt",
-        type=str,
-        default=None,
-        help="path to the checkpoints to resume training",
-    )
-    parser.add_argument("--lr", type=float, default=0.002, help="learning rate")
-    parser.add_argument(
-        "--channel_multiplier",
-        type=int,
-        default=2,
-        help="channel multiplier factor for the model. config-f = 2, else = 1",
-    )
-    parser.add_argument(
-        "--wandb", action="store_true", help="use weights and biases logging"
-    )
-    parser.add_argument(
-        "--local_rank", type=int, default=0, help="local rank for distributed training"
-    )
-    parser.add_argument(
-        "--augment", action="store_true", help="apply non leaking augmentation"
-    )
-    parser.add_argument(
-        "--augment_p",
-        type=float,
-        default=0,
-        help="probability of applying augmentation. 0 = use adaptive augmentation",
-    )
-    parser.add_argument(
-        "--ada_target",
-        type=float,
-        default=0.6,
-        help="target augmentation probability for adaptive augmentation",
-    )
-    parser.add_argument(
-        "--ada_length",
-        type=int,
-        default=500 * 1000,
-        help="target duraing to reach augmentation probability for adaptive augmentation",
-    )
-    parser.add_argument(
-        "--ada_every",
-        type=int,
-        default=256,
-        help="probability update interval of the adaptive augmentation",
-    )
-
-    args = parser.parse_args()
     args = train_args()
 
-    n_gpu = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
+    #n_gpu = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
+    n_gpu = args.ngpus
     args.distributed = n_gpu > 1
 
     if args.distributed:
