@@ -85,12 +85,16 @@ def g_nonsaturating_loss(fake_pred):
 
 
 def g_path_regularize(fake_img, latents, mean_path_length, decay=0.01):
+
     noise = torch.randn_like(fake_img) / math.sqrt(
         fake_img.shape[2] * fake_img.shape[3]
     )
+
+    # NOTE: added allow_unused=True to avoid error for unused gradients in the graph!!
     grad, = autograd.grad(
-        outputs=(fake_img * noise).sum(), inputs=latents, create_graph=True
+        outputs=(fake_img * noise).sum(), inputs=latents, create_graph=True #, allow_unused=True
     )
+
     path_lengths = torch.sqrt(grad.pow(2).sum(2).mean(1))
 
     path_mean = mean_path_length + decay * (path_lengths.mean() - mean_path_length)
@@ -350,13 +354,17 @@ class train_args:
         "ckpt": None,
         "lr": 0.002,
         "channel_multiplier": 2,
-        "wandb": True,
+        
         "augment": False,
         "augment_p": 0.0,
         "ada_target": 0.6,
         "ada_length": 500*1000,
         "ada_every": 256,
-        "ngpus": 2,
+
+        "ngpus": 1, # number of gpus
+        "local_rank": 0, # local rank for distributed training, default 0 for the principal machine
+
+        "wandb": True, # set to false if you don't want to use wandb
         "wandb_project": "stylegan2",
         "wandb_entity": "deep_learning_team",
         "wandb_mode": "online",
@@ -369,39 +377,40 @@ class train_args:
             self.config.update(config)
             
         
-        self.path = config["path"]  # path to the lmdb dataset
-        self.arch = config["arch"]  # model architectures (stylegan2 | swagan)
-        self.iter = config["iter"]  # total training iterations, defult 800'000
-        self.batch = config["batch"]    # batch sizes for each gpus, default: 16
-        self.n_sample = config["n_sample"]  # number of the samples generated during training, default 64
-        self.size = config["size"]  # image sizes for the model, default is 256
-        self.r1 = config["r1"]  # weight of the r1 regularization, default is 10
-        self.path_regularize = config["path_regularize"] # weight of the path regularization, default is 2
-        self.path_batch_shrink = config["path_batch_shrink"] # batch size reducing factor for the path length regularization (reduce memory consumption), default is 2
-        self.d_reg_every = config["d_reg_every"] # interval of the applying r1 regularization (discriminator), default is 16
-        self.g_reg_every = config["g_reg_every"] # interval of the applying path length regularization (generator), default is 4
-        self.mixing = config["mixing"] # probability of latent code mixing, default is 0.9
-        self.ckpt = config["ckpt"] # path to the checkpoint to resume training, default is None
-        self.lr = config["lr"] # learning rate, default is 0.002
-        self.channel_multiplier = config["channel_multiplier"] #channel multiplier factor for the model. config-f = 2, else = 1, default 2
-        self.wandb = config["wandb"] # use wandb for logging, default is False
-        self.local_rank = config["local_rank"] # local rank for distributed training, default is 0
-        self.augment = config["augment"] # apply non leaking augmentation, default is False
-        self.augment_p = config["augment_p"] # probability of applying augmentation. 0 = use adaptive augmentation, default is 0
-        self.ada_target = config["ada_target"] # target augmentation probability for adaptive augmentation, default is 0.6
-        self.ada_length = config["ada_length"] # target duraing to reach augmentation probability for adaptive augmentation, default is 50'000 (500*1000)
-        self.ada_every = config["ada_every"] # probability update interval of the adaptive augmentation, default is 256
+        self.path = self.config["path"]  # path to the lmdb dataset
+        self.arch = self.config["arch"]  # model architectures (stylegan2 | swagan)
+        self.iter = self.config["iter"]  # total training iterations, defult 800'000
+        self.batch = self.config["batch"]    # batch sizes for each gpus, default: 16
+        self.n_sample = self.config["n_sample"]  # number of the samples generated during training, default 64
+        self.size = self.config["size"]  # image sizes for the model, default is 256
+        self.r1 = self.config["r1"]  # weight of the r1 regularization, default is 10
+        self.path_regularize = self.config["path_regularize"] # weight of the path regularization, default is 2
+        self.path_batch_shrink = self.config["path_batch_shrink"] # batch size reducing factor for the path length regularization (reduce memory consumption), default is 2
+        self.d_reg_every = self.config["d_reg_every"] # interval of the applying r1 regularization (discriminator), default is 16
+        self.g_reg_every = self.config["g_reg_every"] # interval of the applying path length regularization (generator), default is 4
+        self.mixing = self.config["mixing"] # probability of latent code mixing, default is 0.9
+        self.ckpt = self.config["ckpt"] # path to the checkpoint to resume training, default is None
+        self.lr = self.config["lr"] # learning rate, default is 0.002
+        self.channel_multiplier = self.config["channel_multiplier"] #channel multiplier factor for the model. config-f = 2, else = 1, default 2
         
-        self.ngpus = config["ngpus"] # number of gpus to use, default is 1
+        self.augment = self.config["augment"] # apply non leaking augmentation, default is False
+        self.augment_p = self.config["augment_p"] # probability of applying augmentation. 0 = use adaptive augmentation, default is 0
+        self.ada_target = self.config["ada_target"] # target augmentation probability for adaptive augmentation, default is 0.6
+        self.ada_length = self.config["ada_length"] # target duraing to reach augmentation probability for adaptive augmentation, default is 50'000 (500*1000)
+        self.ada_every = self.config["ada_every"] # probability update interval of the adaptive augmentation, default is 256
+        
+        self.ngpus = self.config["ngpus"] # number of gpus to use, default is 1
+        self.local_rank = self.config["local_rank"] # local rank for distributed training, default is 0
 
-        self.wandb_project = config["wandb_project"] # wandb project name, default is None
-        self.wandb_entity = config["wandb_entity"] # wandb entity name, default is None
-        self.wandb_mode = config["wandb_mode"] # wandb run name, default is None
+        self.wandb = self.config["wandb"] # use wandb for logging, default is False
+        self.wandb_project = self.config["wandb_project"] # wandb project name, default is None
+        self.wandb_entity = self.config["wandb_entity"] # wandb entity name, default is None
+        self.wandb_mode = self.config["wandb_mode"] # wandb run name, default is None
 
-        self.distributed = False
-        args.latent = 512
-        args.n_mlp = 8
-        args.start_iter = 0
+        self.distributed = False # set to true if you want to use distributed training
+        self.latent = 512 # latent vector size
+        self.n_mlp = 8 # number of layers in the mapping network, default is 8
+        self.start_iter = 0 # starting iteration for resuming training, default is 0
 
 
 if __name__ == "__main__":
@@ -409,37 +418,36 @@ if __name__ == "__main__":
 
     args = train_args()
 
-    #n_gpu = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
-    n_gpu = args.ngpus
-    args.distributed = n_gpu > 1
-
     if args.distributed:
         torch.cuda.set_device(args.local_rank)
         torch.distributed.init_process_group(backend="nccl", init_method="env://")
         synchronize()
 
-    args.latent = 512
-    args.n_mlp = 8
+    #if args.arch in ["stylegan2", "swgan"]:
+    #    if args.arch == 'stylegan2':
+    #        from model import Generator, Discriminator
+    #
+    #    elif args.arch == 'swagan':
+    #        from swagan import Generator, Discriminator
+    #else:
+    #    raise NotImplementedError(f"{args.arch} is not implemented")
 
-    args.start_iter = 0
-
-    if args.arch == 'stylegan2':
-        from model import Generator, Discriminator
-
-    elif args.arch == 'swagan':
-        from swagan import Generator, Discriminator
+    from swagan import Generator, Discriminator
 
     generator = Generator(
         args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
     ).to(device)
+
     discriminator = Discriminator(
         args.size, channel_multiplier=args.channel_multiplier
     ).to(device)
+
     g_ema = Generator(
         args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
     ).to(device)
+
     g_ema.eval()
-    accumulate(g_ema, generator, 0)
+    accumulate(g_ema, generator, 0) # ???
 
     g_reg_ratio = args.g_reg_every / (args.g_reg_every + 1)
     d_reg_ratio = args.d_reg_every / (args.d_reg_every + 1)
@@ -449,12 +457,14 @@ if __name__ == "__main__":
         lr=args.lr * g_reg_ratio,
         betas=(0 ** g_reg_ratio, 0.99 ** g_reg_ratio),
     )
+
     d_optim = optim.Adam(
         discriminator.parameters(),
         lr=args.lr * d_reg_ratio,
         betas=(0 ** d_reg_ratio, 0.99 ** d_reg_ratio),
     )
 
+    # loading checkpoint
     if args.ckpt is not None:
         print("load model:", args.ckpt)
 
@@ -474,6 +484,7 @@ if __name__ == "__main__":
         g_optim.load_state_dict(ckpt["g_optim"])
         d_optim.load_state_dict(ckpt["d_optim"])
 
+    # using a distributed cluster
     if args.distributed:
         generator = nn.parallel.DistributedDataParallel(
             generator,
@@ -488,6 +499,12 @@ if __name__ == "__main__":
             output_device=args.local_rank,
             broadcast_buffers=False,
         )
+
+    # if using multiple gpus on a single machine
+    elif args.ngpus > 1:
+        generator = nn.DataParallel(generator)
+        discriminator = nn.DataParallel(discriminator)
+
 
     transform = transforms.Compose(
         [
