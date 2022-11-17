@@ -329,6 +329,78 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
                 )
 
 
+class train_args:
+    """
+    class that contain the same variables
+    as the arguments of the train.py file
+    """
+    std_config = {
+        "path": None,
+        "arch": "stylegan2",
+        "iter": 800000,
+        "batch": 8,
+        "n_sample": 64,
+        "size": 256,
+        "r1": 10,
+        "path_regularize": 2,
+        "path_batch_shrink": 2,
+        "d_reg_every": 16,
+        "g_reg_every": 4,
+        "mixing": 0.9,
+        "ckpt": None,
+        "lr": 0.002,
+        "channel_multiplier": 2,
+        "wandb": False,
+        "augment": True,
+        "augment_p": 0.0,
+        "ada_target": 0.6,
+        "ada_length": 500*1000,
+        "ada_every": 256,
+        "wandb_project": "stylegan2",
+        "wandb_entity": "deep_learning_team",
+        "wandb_mode": "online",
+    }
+
+    def __init__(self, config=None):
+        
+        self.config = self.std_config
+        if config is not None:
+            self.config.update(config)
+            
+        
+        self.path = config["path"]  # path to the lmdb dataset
+        self.arch = config["arch"]  # model architectures (stylegan2 | swagan)
+        self.iter = config["iter"]  # total training iterations, defult 800'000
+        self.batch = config["batch"]    # batch sizes for each gpus, default: 16
+        self.n_sample = config["n_sample"]  # number of the samples generated during training, default 64
+        self.size = config["size"]  # image sizes for the model, default is 256
+        self.r1 = config["r1"]  # weight of the r1 regularization, default is 10
+        self.path_regularize = config["path_regularize"] # weight of the path regularization, default is 2
+        self.path_batch_shrink = config["path_batch_shrink"] # batch size reducing factor for the path length regularization (reduce memory consumption), default is 2
+        self.d_reg_every = config["d_reg_every"] # interval of the applying r1 regularization (discriminator), default is 16
+        self.g_reg_every = config["g_reg_every"] # interval of the applying path length regularization (generator), default is 4
+        self.mixing = config["mixing"] # probability of latent code mixing, default is 0.9
+        self.ckpt = config["ckpt"] # path to the checkpoint to resume training, default is None
+        self.lr = config["lr"] # learning rate, default is 0.002
+        self.channel_multiplier = config["channel_multiplier"] #channel multiplier factor for the model. config-f = 2, else = 1, default 2
+        self.wandb = config["wandb"] # use wandb for logging, default is False
+        self.local_rank = config["local_rank"] # local rank for distributed training, default is 0
+        self.augment = config["augment"] # apply non leaking augmentation, default is False
+        self.augment_p = config["augment_p"] # probability of applying augmentation. 0 = use adaptive augmentation, default is 0
+        self.ada_target = config["ada_target"] # target augmentation probability for adaptive augmentation, default is 0.6
+        self.ada_length = config["ada_length"] # target duraing to reach augmentation probability for adaptive augmentation, default is 50'000 (500*1000)
+        self.ada_every = config["ada_every"] # probability update interval of the adaptive augmentation, default is 256
+        
+        self.wandb_project = config["wandb_project"] # wandb project name, default is None
+        self.wandb_entity = config["wandb_entity"] # wandb entity name, default is None
+        self.wandb_mode = config["wandb_mode"] # wandb run name, default is None
+
+        self.distributed = False
+        args.latent = 512
+        args.n_mlp = 8
+        args.start_iter = 0
+
+
 if __name__ == "__main__":
     device = "cuda"
 
@@ -518,6 +590,7 @@ if __name__ == "__main__":
     )
 
     dataset = MultiResolutionDataset(args.path, transform, args.size)
+
     loader = data.DataLoader(
         dataset,
         batch_size=args.batch,
@@ -526,6 +599,12 @@ if __name__ == "__main__":
     )
 
     if get_rank() == 0 and wandb is not None and args.wandb:
-        wandb.init(project="stylegan 2")
+        wandb.init(
+            project=args.wandb_project, 
+            entity=args.wandb_entity,
+            mode=args.wandb_mode
+        )
+
+        wandb.config.update(args.__dict__)
 
     train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, device)
