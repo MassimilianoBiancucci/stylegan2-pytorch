@@ -23,6 +23,9 @@ from model import (
 
 
 def get_haar_wavelet(in_channels):
+    """
+    Get Haar Wavelet
+    """
     haar_wav_l = 1 / (2 ** 0.5) * torch.ones(1, 2)
     haar_wav_h = 1 / (2 ** 0.5) * torch.ones(1, 2)
     haar_wav_h[0, 0] = -1 * haar_wav_h[0, 0]
@@ -36,6 +39,9 @@ def get_haar_wavelet(in_channels):
 
 
 def dwt_init(x):
+    """
+    Discrete Wavelet Transform
+    """
     x01 = x[:, :, 0::2, :] / 2
     x02 = x[:, :, 1::2, :] / 2
     x1 = x01[:, :, :, 0::2]
@@ -51,6 +57,9 @@ def dwt_init(x):
 
 
 def iwt_init(x):
+    """
+    Inverse Discrete Wavelet Transform
+    """
     r = 2
     in_batch, in_channel, in_height, in_width = x.size()
     # print([in_batch, in_channel, in_height, in_width])
@@ -76,6 +85,10 @@ def iwt_init(x):
 
 
 class HaarTransform(nn.Module):
+    """
+    Module for Haar Transform
+    """
+
     def __init__(self, in_channels):
         super().__init__()
 

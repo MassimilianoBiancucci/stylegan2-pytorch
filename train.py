@@ -199,7 +199,6 @@ def train(args, loader, generator, discriminator, g_optim, d_optim, g_ema, devic
             r_t_stat = ada_augment.r_t_stat
 
         d_regularize = i % args.d_reg_every == 0
-
         if d_regularize:
             real_img.requires_grad = True
 
