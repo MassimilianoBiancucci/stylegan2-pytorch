@@ -72,34 +72,30 @@ def extract_features(loader, inception, device):
 
     return features
 
+# class that embed the calc_inception parameters
+class Inception_calc_params:
+    std_config = {
+        "size": 256, # size of the images
+        "batch": 32, # batch size
+        "n_sample": 50000, # number of images to sample
+        "flip": False, # flip the images (apply augmentation)
+        "path": "", # path to the lmdb dataset
+    }
+
+    def __init__(self, config=None):
+        if config is None:
+            config = self.std_config
+        else:
+            self.config = config
+
+        # set the parameters
+        for key, value in config.items():
+            setattr(self, key, value)
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    parser = argparse.ArgumentParser(
-        description="Calculate Inception v3 features for datasets"
-    )
-    parser.add_argument(
-        "--size",
-        type=int,
-        default=256,
-        help="image sizes used for embedding calculation",
-    )
-    parser.add_argument(
-        "--batch", default=64, type=int, help="batch size for inception networks"
-    )
-    parser.add_argument(
-        "--n_sample",
-        type=int,
-        default=50000,
-        help="number of samples used for embedding calculation",
-    )
-    parser.add_argument(
-        "--flip", action="store_true", help="apply random flipping to real images"
-    )
-    parser.add_argument("path", metavar="PATH", help="path to datset lmdb file")
-
-    args = parser.parse_args()
+    args = Inception_calc_params()
 
     inception = load_patched_inception_v3()
     inception = nn.DataParallel(inception).eval().to(device)

@@ -423,15 +423,7 @@ if __name__ == "__main__":
         torch.distributed.init_process_group(backend="nccl", init_method="env://")
         synchronize()
 
-    #if args.arch in ["stylegan2", "swgan"]:
-    #    if args.arch == 'stylegan2':
-    #        from model import Generator, Discriminator
-    #
-    #    elif args.arch == 'swagan':
-    #        from swagan import Generator, Discriminator
-    #else:
-    #    raise NotImplementedError(f"{args.arch} is not implemented")
-
+    #from model import Generator, Discriminator
     from swagan import Generator, Discriminator
 
     generator = Generator(

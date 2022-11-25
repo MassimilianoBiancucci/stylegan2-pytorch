@@ -17,10 +17,23 @@
 
 template <typename scalar_t>
 static __global__ void
-fused_bias_act_kernel(scalar_t *out, const scalar_t *p_x, const scalar_t *p_b,
-                      const scalar_t *p_ref, int act, int grad, scalar_t alpha,
-                      scalar_t scale, int loop_x, int size_x, int step_b,
-                      int size_b, int use_bias, int use_ref) {
+fused_bias_act_kernel(
+    scalar_t *out, 
+    const scalar_t *p_x, 
+    const scalar_t *p_b,
+    const scalar_t *p_ref, 
+    int act, 
+    int grad, 
+    scalar_t alpha,
+    scalar_t scale, 
+    int loop_x, 
+    int size_x, 
+    int step_b,
+    int size_b, 
+    int use_bias, 
+    int use_ref
+  ){
+
   int xi = blockIdx.x * loop_x * blockDim.x + threadIdx.x;
 
   scalar_t zero = 0.0;
@@ -96,9 +109,21 @@ torch::Tensor fused_bias_act_op(const torch::Tensor &input,
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(
       x.scalar_type(), "fused_bias_act_kernel", [&] {
         fused_bias_act_kernel<scalar_t><<<grid_size, block_size, 0, stream>>>(
-            y.data_ptr<scalar_t>(), x.data_ptr<scalar_t>(),
-            b.data_ptr<scalar_t>(), ref.data_ptr<scalar_t>(), act, grad, alpha,
-            scale, loop_x, size_x, step_b, size_b, use_bias, use_ref);
+            y.data_ptr<scalar_t>(), 
+            x.data_ptr<scalar_t>(),
+            b.data_ptr<scalar_t>(), 
+            ref.data_ptr<scalar_t>(), 
+            act, 
+            grad, 
+            alpha,
+            scale, 
+            loop_x, 
+            size_x, 
+            step_b, 
+            size_b, 
+            use_bias, 
+            use_ref
+          );
       });
 
   return y;

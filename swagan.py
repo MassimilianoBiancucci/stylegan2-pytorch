@@ -40,7 +40,7 @@ def get_haar_wavelet(in_channels):
 
 def dwt_init(x):
     """
-    Discrete Wavelet Transform
+    Discrete Wavelet Transform initialization
     """
     x01 = x[:, :, 0::2, :] / 2
     x02 = x[:, :, 1::2, :] / 2
@@ -58,7 +58,7 @@ def dwt_init(x):
 
 def iwt_init(x):
     """
-    Inverse Discrete Wavelet Transform
+    Inverse Discrete Wavelet Transform initialization
     """
     r = 2
     in_batch, in_channel, in_height, in_width = x.size()
@@ -109,6 +109,7 @@ class HaarTransform(nn.Module):
 
 
 class InverseHaarTransform(nn.Module):
+
     def __init__(self, in_channels):
         super().__init__()
 
@@ -130,6 +131,7 @@ class InverseHaarTransform(nn.Module):
 
 
 class ToRGB(nn.Module):
+
     def __init__(self, in_channel, style_dim, upsample=True, blur_kernel=[1, 3, 3, 1]):
         super().__init__()
 
@@ -156,6 +158,7 @@ class ToRGB(nn.Module):
 
 
 class Generator(nn.Module):
+
     def __init__(
         self,
         size,
@@ -210,6 +213,9 @@ class Generator(nn.Module):
 
         in_channel = self.channels[4]
 
+        # generating noise tensors for each layer
+        # calculating create the noise tensors for each layer
+        # and store it as a buffer in the noises module
         for layer_idx in range(self.num_layers):
             res = (layer_idx + 5) // 2
             shape = [1, 1, 2 ** res, 2 ** res]
@@ -231,7 +237,11 @@ class Generator(nn.Module):
 
             self.convs.append(
                 StyledConv(
-                    out_channel, out_channel, 3, style_dim, blur_kernel=blur_kernel
+                    out_channel, 
+                    out_channel, 
+                    3, 
+                    style_dim, 
+                    blur_kernel=blur_kernel
                 )
             )
 
@@ -276,9 +286,31 @@ class Generator(nn.Module):
         noise=None,
         randomize_noise=True,
     ):
+        """
+            Method to generate images from the generator.
+
+            Args:
+                styles (torch.Tensor): Style codes to be used for image generation.
+                return_latents (bool): If True, returns the latents used for image generation.
+                inject_index (int): If not None, injects the given style code at the given index.
+                truncation (float): Truncation factor to be used for truncation trick.
+                truncation_latent (torch.Tensor): Latent vector to be used for truncation trick.
+                input_is_latent (bool): If True, assumes that the input is a latent vector.
+                noise (list): List of noise tensors to be used for image generation.
+                randomize_noise (bool): If True, randomizes noise for each image in the batch.
+            
+            Returns:
+                torch.Tensor: Generated images.
+        """
+        ### input preprocessing
+        #############################################################################
+
+        # if the input is a latent vector, then we don't need to pass it through the style network
         if not input_is_latent:
             styles = [self.style(s) for s in styles]
 
+        # if the noise isn't provided, then we create a new noise tensor if randomize_noise is True
+        # else we use the noise tensor stored in the noises module
         if noise is None:
             if randomize_noise:
                 noise = [None] * self.num_layers
@@ -287,6 +319,7 @@ class Generator(nn.Module):
                     getattr(self.noises, f"noise_{i}") for i in range(self.num_layers)
                 ]
 
+        # if truncation is not 1, then we use the truncation trick
         if truncation < 1:
             style_t = []
 
@@ -297,6 +330,8 @@ class Generator(nn.Module):
 
             styles = style_t
 
+        # if there is more than one style code, then we use the mixing trick
+        # the snippet below adjusts the style codes to be used for each layer
         if len(styles) < 2:
             inject_index = self.n_latent
 
@@ -307,18 +342,23 @@ class Generator(nn.Module):
                 latent = styles[0]
 
         else:
+            # if the inject index is not provided, then we randomly choose one
             if inject_index is None:
                 inject_index = random.randint(1, self.n_latent - 1)
 
+            # concatenating the style codes and arranging it in the required format
             latent = styles[0].unsqueeze(1).repeat(1, inject_index, 1)
             latent2 = styles[1].unsqueeze(1).repeat(1, self.n_latent - inject_index, 1)
 
             latent = torch.cat([latent, latent2], 1)
 
-        out = self.input(latent)
-        out = self.conv1(out, latent[:, 0], noise=noise[0])
+        # starting the forward pass
+        #############################################################################
 
-        skip = self.to_rgb1(out, latent[:, 1])
+        out = self.input(latent) # generating the first constant tensor
+        out = self.conv1(out, latent[:, 0], noise=noise[0]) # forwoed into the first convolutional layer
+
+        skip = self.to_rgb1(out, latent[:, 1]) # generating the first skip connection
 
         i = 1
         for conv1, conv2, noise1, noise2, to_rgb in zip(
@@ -340,6 +380,7 @@ class Generator(nn.Module):
 
 
 class ConvBlock(nn.Module):
+
     def __init__(self, in_channel, out_channel, blur_kernel=[1, 3, 3, 1]):
         super().__init__()
 
@@ -354,6 +395,7 @@ class ConvBlock(nn.Module):
 
 
 class FromRGB(nn.Module):
+
     def __init__(self, out_channel, downsample=True, blur_kernel=[1, 3, 3, 1]):
         super().__init__()
 
@@ -381,6 +423,7 @@ class FromRGB(nn.Module):
 
 
 class Discriminator(nn.Module):
+
     def __init__(self, size, channel_multiplier=2, blur_kernel=[1, 3, 3, 1]):
         super().__init__()
 

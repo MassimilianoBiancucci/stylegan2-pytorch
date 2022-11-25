@@ -56,43 +56,31 @@ def calc_fid(sample_mean, sample_cov, real_mean, real_cov, eps=1e-6):
 
     return fid
 
+class fid_params:
+    std__params = {
+        "truncation": 1.0, # truncation trick factor
+        "truncation_mean": 4096, # number of vectors to calculate mean for truncation
+        "batch_size": 64, # batch size for feeding into Inception
+        "n_sample": 50000, # number of samples to calculate FID
+        "size": 256, # image size
+        "inception": None, # path to the precomputed inception embeddings
+        "ckpt": "/home/max/thesis/stylegan2-pytorch/checkpoint/car_tile_gan_110000.pt", # path to the model checkpoint
+    }
+
+    def __init__(self, config=None):
+        if config is not None:
+            self.config = config
+        else:
+            self.config = self.std__params
+        
+        # load the config dict into the class
+        for key, value in self.config.items():
+            setattr(self, key, value)
 
 if __name__ == "__main__":
     device = "cuda"
 
-    parser = argparse.ArgumentParser(description="Calculate FID scores")
-
-    parser.add_argument("--truncation", type=float, default=1, help="truncation factor")
-    parser.add_argument(
-        "--truncation_mean",
-        type=int,
-        default=4096,
-        help="number of samples to calculate mean for truncation",
-    )
-    parser.add_argument(
-        "--batch", type=int, default=64, help="batch size for the generator"
-    )
-    parser.add_argument(
-        "--n_sample",
-        type=int,
-        default=50000,
-        help="number of the samples for calculating FID",
-    )
-    parser.add_argument(
-        "--size", type=int, default=256, help="image sizes for generator"
-    )
-    parser.add_argument(
-        "--inception",
-        type=str,
-        default=None,
-        required=True,
-        help="path to precomputed inception embedding",
-    )
-    parser.add_argument(
-        "ckpt", metavar="CHECKPOINT", help="path to generator checkpoint"
-    )
-
-    args = parser.parse_args()
+    args = fid_params()
 
     ckpt = torch.load(args.ckpt)
 

@@ -157,7 +157,7 @@ class EqualLinear(nn.Module):
             out = F.linear(
                 input, self.weight * self.scale, bias=self.bias * self.lr_mul
             )
-
+        
         return out
 
     def __repr__(self):
@@ -330,6 +330,7 @@ class ConstantInput(nn.Module):
 
 
 class StyledConv(nn.Module):
+
     def __init__(
         self,
         in_channel,
@@ -356,6 +357,7 @@ class StyledConv(nn.Module):
         # self.bias = nn.Parameter(torch.zeros(1, out_channel, 1, 1))
         # self.activate = ScaledLeakyReLU(0.2)
         self.activate = FusedLeakyReLU(out_channel)
+
 
     def forward(self, input, style, noise=None):
         out = self.conv(input, style)
@@ -507,9 +509,30 @@ class Generator(nn.Module):
         noise=None,
         randomize_noise=True,
     ):
+        """
+            Method that executes the forward pass of the Generator.
+
+            Args:
+                styles (torch.Tensor): Style codes to be used for the forward pass.
+                return_latents (bool): Whether to return the latents or not.
+                inject_index (int): Index of the layer where the style code should be injected.
+                truncation (float): Truncation factor.
+                truncation_latent (torch.Tensor): Latent vector to be used for truncation.
+                input_is_latent (bool): Whether the input is a latent vector or not.
+                noise (list): List of noise tensors to be used for the forward pass.
+                randomize_noise (bool): Whether to randomize the noise or not.
+            
+            Returns:
+                out (torch.Tensor): Output of the forward pass.
+        """
+
+        # if the input is not a latent vector, get the latent vector
+        # from the style network
         if not input_is_latent:
             styles = [self.style(s) for s in styles]
 
+        # if the noise is not provided, generate a new one if randomize_noise is True
+        # otherwise, use the default noise stored in the model
         if noise is None:
             if randomize_noise:
                 noise = [None] * self.num_layers
@@ -518,6 +541,8 @@ class Generator(nn.Module):
                     getattr(self.noises, f"noise_{i}") for i in range(self.num_layers)
                 ]
 
+        # if truncation is less than 1, apply the truncation trick
+        # using the provided truncation_latent, provided that should be the center of the W distribution
         if truncation < 1:
             style_t = []
 
@@ -528,6 +553,7 @@ class Generator(nn.Module):
 
             styles = style_t
 
+        # 
         if len(styles) < 2:
             inject_index = self.n_latent
 
