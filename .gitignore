@@ -133,3 +133,5 @@ wandb/
 *.pkl
 
 env
+checkpoint
+
