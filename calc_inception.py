@@ -76,10 +76,10 @@ def extract_features(loader, inception, device):
 class Inception_calc_params:
     std_config = {
         "size": 256, # size of the images
-        "batch": 32, # batch size
-        "n_sample": 50000, # number of images to sample
+        "batch": 64, # batch size
+        "n_sample": 30000, # number of images to sample
         "flip": False, # flip the images (apply augmentation)
-        "path": "", # path to the lmdb dataset
+        "path": "/home/ubuntu/hdd/Datasets/car_tile_only_img_dataset_lmdb", # path to the lmdb dataset
     }
 
     def __init__(self, config=None):

@@ -7,9 +7,11 @@ import numpy as np
 from scipy import linalg
 from tqdm import tqdm
 
-from model import Generator
+#from model import Generator
+from swagan import Generator
 from calc_inception import load_patched_inception_v3
 
+from train_distributed import train_args
 
 @torch.no_grad()
 def extract_feature_from_samples(
@@ -58,13 +60,13 @@ def calc_fid(sample_mean, sample_cov, real_mean, real_cov, eps=1e-6):
 
 class fid_params:
     std__params = {
-        "truncation": 1.0, # truncation trick factor
+        "truncation": 0.7, # truncation trick factor
         "truncation_mean": 4096, # number of vectors to calculate mean for truncation
-        "batch_size": 64, # batch size for feeding into Inception
-        "n_sample": 50000, # number of samples to calculate FID
+        "batch": 232, # batch size for feeding into Inception
+        "n_sample": 30000, # number of samples to calculate FID
         "size": 256, # image size
-        "inception": None, # path to the precomputed inception embeddings
-        "ckpt": "/home/max/thesis/stylegan2-pytorch/checkpoint/car_tile_gan_110000.pt", # path to the model checkpoint
+        "inception": "/home/ubuntu/hdd/Datasets/car_tile_only_img_dataset_lmdb/inception_car_tile_only_img_dataset_lmdb.pkl", # path to the precomputed inception embeddings
+        "ckpt": "/home/ubuntu/hdd/stylegan2-pytorch/checkpoint/110000.pt", # path to the model checkpoint
     }
 
     def __init__(self, config=None):
@@ -91,7 +93,7 @@ if __name__ == "__main__":
 
     if args.truncation < 1:
         with torch.no_grad():
-            mean_latent = g.mean_latent(args.truncation_mean)
+            mean_latent = g.module.mean_latent(args.truncation_mean)
 
     else:
         mean_latent = None
