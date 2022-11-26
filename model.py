@@ -369,14 +369,16 @@ class StyledConv(nn.Module):
 
 
 class ToRGB(nn.Module):
-    def __init__(self, in_channel, style_dim, upsample=True, blur_kernel=[1, 3, 3, 1]):
+    def __init__(self, in_channel, style_dim, upsample=True, blur_kernel=[1, 3, 3, 1], out_channels=3):
         super().__init__()
+
+        self.out_ch = out_channels
 
         if upsample:
             self.upsample = Upsample(blur_kernel)
 
-        self.conv = ModulatedConv2d(in_channel, 3, 1, style_dim, demodulate=False)
-        self.bias = nn.Parameter(torch.zeros(1, 3, 1, 1))
+        self.conv = ModulatedConv2d(in_channel, self.out_ch, 1, style_dim, demodulate=False)
+        self.bias = nn.Parameter(torch.zeros(1, self.out_ch, 1, 1))
 
     def forward(self, input, style, skip=None):
         out = self.conv(input, style)
@@ -663,8 +665,10 @@ class ResBlock(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, size, channel_multiplier=2, blur_kernel=[1, 3, 3, 1]):
+    def __init__(self, size, channel_multiplier=2, blur_kernel=[1, 3, 3, 1], input_channels=3):
         super().__init__()
+
+        self.in_ch = input_channels
 
         channels = {
             4: 512,
@@ -678,7 +682,7 @@ class Discriminator(nn.Module):
             1024: 16 * channel_multiplier,
         }
 
-        convs = [ConvLayer(3, channels[size], 1)]
+        convs = [ConvLayer(self.in_ch, channels[size], 1)]
 
         log_size = int(math.log(size, 2))
 

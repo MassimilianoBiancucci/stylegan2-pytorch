@@ -22,7 +22,7 @@ from model import (
 )
 
 
-def get_haar_wavelet(in_channels):
+def get_haar_wavelet():
     """
     Get Haar Wavelet
     """
@@ -89,10 +89,10 @@ class HaarTransform(nn.Module):
     Module for Haar Transform
     """
 
-    def __init__(self, in_channels):
+    def __init__(self):
         super().__init__()
 
-        ll, lh, hl, hh = get_haar_wavelet(in_channels)
+        ll, lh, hl, hh = get_haar_wavelet()
 
         self.register_buffer("ll", ll)
         self.register_buffer("lh", lh)
@@ -110,10 +110,10 @@ class HaarTransform(nn.Module):
 
 class InverseHaarTransform(nn.Module):
 
-    def __init__(self, in_channels):
+    def __init__(self):
         super().__init__()
 
-        ll, lh, hl, hh = get_haar_wavelet(in_channels)
+        ll, lh, hl, hh = get_haar_wavelet()
 
         self.register_buffer("ll", ll)
         self.register_buffer("lh", -lh)
@@ -132,16 +132,24 @@ class InverseHaarTransform(nn.Module):
 
 class ToRGB(nn.Module):
 
-    def __init__(self, in_channel, style_dim, upsample=True, blur_kernel=[1, 3, 3, 1]):
+    def __init__(self, in_channel, style_dim, upsample=True, blur_kernel=[1, 3, 3, 1], out_channels=3):
+        """
+        ToRGB layer
+        Apply a modulated conv layer to the input and then apply a bias
+        if the skip input is present from the last layer it 
+
+        """
         super().__init__()
 
-        if upsample:
-            self.iwt = InverseHaarTransform(3)
-            self.upsample = Upsample(blur_kernel)
-            self.dwt = HaarTransform(3)
+        self.out_ch = out_channels # channels of the final output tensor
 
-        self.conv = ModulatedConv2d(in_channel, 3 * 4, 1, style_dim, demodulate=False)
-        self.bias = nn.Parameter(torch.zeros(1, 3 * 4, 1, 1))
+        if upsample:
+            self.iwt = InverseHaarTransform()
+            self.upsample = Upsample(blur_kernel)
+            self.dwt = HaarTransform()
+
+        self.conv = ModulatedConv2d(in_channel, self.out_ch * 4, 1, style_dim, demodulate=False)
+        self.bias = nn.Parameter(torch.zeros(1, self.out_ch * 4, 1, 1))
 
     def forward(self, input, style, skip=None):
         out = self.conv(input, style)
@@ -167,12 +175,28 @@ class Generator(nn.Module):
         channel_multiplier=2,
         blur_kernel=[1, 3, 3, 1],
         lr_mlp=0.01,
+        out_channels=3
     ):
+        """
+        SWAGAN Generator initialization
+
+        Args:
+            size (int): output tensor size
+            style_dim (int): style vector dimension
+            n_mlp (int): number of MLP layers
+            channel_multiplier (int): channel multiplier
+            blur_kernel (list): blur kernel
+            lr_mlp (float): learning rate multiplier for the mapping network
+            out_channels (int): number of output channels
+
+        """
         super().__init__()
 
-        self.size = size
+        self.size = size # h, w of output tensor
 
-        self.style_dim = style_dim
+        self.style_dim = style_dim # style vector dimension
+
+        self.out_ch = out_channels
 
         layers = [PixelNorm()]
 
@@ -201,7 +225,7 @@ class Generator(nn.Module):
         self.conv1 = StyledConv(
             self.channels[4], self.channels[4], 3, style_dim, blur_kernel=blur_kernel
         )
-        self.to_rgb1 = ToRGB(self.channels[4], style_dim, upsample=False)
+        self.to_rgb1 = ToRGB(self.channels[4], style_dim, upsample=False, out_channels=self.out_ch)
 
         self.log_size = int(math.log(size, 2)) - 1
         self.num_layers = (self.log_size - 2) * 2 + 1
@@ -245,11 +269,11 @@ class Generator(nn.Module):
                 )
             )
 
-            self.to_rgbs.append(ToRGB(out_channel, style_dim))
+            self.to_rgbs.append(ToRGB(out_channel, style_dim, out_channels=self.out_ch))
 
             in_channel = out_channel
 
-        self.iwt = InverseHaarTransform(3)
+        self.iwt = InverseHaarTransform()
 
         self.n_latent = self.log_size * 2 - 2
 
@@ -357,8 +381,10 @@ class Generator(nn.Module):
 
         out = self.input(latent) # generating the first constant tensor
         out = self.conv1(out, latent[:, 0], noise=noise[0]) # forwoed into the first convolutional layer
+        # out here is a tensor bx512x4x4
 
         skip = self.to_rgb1(out, latent[:, 1]) # generating the first skip connection
+        # skip here is a tensor bx12x8x8 (to_rgb double the size of the input and return the image in the wavelet domain)
 
         i = 1
         for conv1, conv2, noise1, noise2, to_rgb in zip(
@@ -396,17 +422,28 @@ class ConvBlock(nn.Module):
 
 class FromRGB(nn.Module):
 
-    def __init__(self, out_channel, downsample=True, blur_kernel=[1, 3, 3, 1]):
+    def __init__(self, out_channel, downsample=True, blur_kernel=[1, 3, 3, 1], in_channels=3):
+        """
+            Skip connection from the network output to the wavelet branch.
+
+            Args:
+                out_channel (int): Number of channels in the output.
+                downsample (bool): If True, downsamples the input by a factor of 2.
+                blur_kernel (list): Blur kernel to be used for downsampling.
+                in_channels (int): Number of channels in the final tensor, if the image is rgb then it is 3.
+        """
         super().__init__()
 
         self.downsample = downsample
 
-        if downsample:
-            self.iwt = InverseHaarTransform(3)
-            self.downsample = Downsample(blur_kernel)
-            self.dwt = HaarTransform(3)
+        self.in_ch = in_channels
 
-        self.conv = ConvLayer(3 * 4, out_channel, 3)
+        if downsample:
+            self.iwt = InverseHaarTransform()
+            self.downsample = Downsample(blur_kernel)
+            self.dwt = HaarTransform()
+
+        self.conv = ConvLayer(self.in_ch * 4, out_channel, 3)
 
     def forward(self, input, skip=None):
         if self.downsample:
@@ -424,8 +461,10 @@ class FromRGB(nn.Module):
 
 class Discriminator(nn.Module):
 
-    def __init__(self, size, channel_multiplier=2, blur_kernel=[1, 3, 3, 1]):
+    def __init__(self, size, channel_multiplier=2, blur_kernel=[1, 3, 3, 1], in_channels=3):
         super().__init__()
+
+        self.in_ch = in_channels
 
         channels = {
             4: 512,
@@ -451,12 +490,12 @@ class Discriminator(nn.Module):
         for i in range(log_size, 2, -1):
             out_channel = channels[2 ** (i - 1)]
 
-            self.from_rgbs.append(FromRGB(in_channel, downsample=i != log_size))
+            self.from_rgbs.append(FromRGB(in_channel, downsample=i != log_size, in_channels=self.in_ch))
             self.convs.append(ConvBlock(in_channel, out_channel, blur_kernel))
 
             in_channel = out_channel
 
-        self.from_rgbs.append(FromRGB(channels[4]))
+        self.from_rgbs.append(FromRGB(channels[4], in_channels=self.in_ch))
 
         self.stddev_group = 4
         self.stddev_feat = 1

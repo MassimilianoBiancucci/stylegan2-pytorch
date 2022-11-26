@@ -2,8 +2,13 @@ import argparse
 
 import torch
 from torchvision import utils
-from model import Generator
+
+#from model import Generator
+from swagan import Generator
+
 from tqdm import tqdm
+
+from train_distributed import train_args
 
 
 def generate(args, g_ema, device, mean_latent):
@@ -25,48 +30,34 @@ def generate(args, g_ema, device, mean_latent):
                 range=(-1, 1),
             )
 
+class inference_params:
+    std_params = {
+        "size": 256, # image size
+        "sample": 1, # number of samples to generate foreach pic
+        "pics": 100, # number of pictures
+        "latent": 512, # latent vector size
+        "n_mlp": 8, # number of MLP layers
+        "truncation": 15.0, # truncation trick factor
+        "truncation_mean": 4096, # number of vectors to calculate mean for truncation
+        "ckpt": "/home/max/thesis/stylegan2-pytorch/checkpoint/car_tile_gan_110000.pt", # path to the model checkpoint
+        "channel_multiplier": 2, # channel multiplier used during the training
+    }
+
+    def __init__(self, config=None):
+        if config is not None:
+            self.config = config
+        else:
+            self.config = self.std_params
+        
+        # load the config dict into the class
+        for key, value in self.config.items():
+            setattr(self, key, value)
+
 
 if __name__ == "__main__":
     device = "cuda"
 
-    parser = argparse.ArgumentParser(description="Generate samples from the generator")
-
-    parser.add_argument(
-        "--size", type=int, default=1024, help="output image size of the generator"
-    )
-    parser.add_argument(
-        "--sample",
-        type=int,
-        default=1,
-        help="number of samples to be generated for each image",
-    )
-    parser.add_argument(
-        "--pics", type=int, default=20, help="number of images to be generated"
-    )
-    parser.add_argument("--truncation", type=float, default=1, help="truncation ratio")
-    parser.add_argument(
-        "--truncation_mean",
-        type=int,
-        default=4096,
-        help="number of vectors to calculate mean for the truncation",
-    )
-    parser.add_argument(
-        "--ckpt",
-        type=str,
-        default="stylegan2-ffhq-config-f.pt",
-        help="path to the model checkpoint",
-    )
-    parser.add_argument(
-        "--channel_multiplier",
-        type=int,
-        default=2,
-        help="channel multiplier of the generator. config-f = 2, else = 1",
-    )
-
-    args = parser.parse_args()
-
-    args.latent = 512
-    args.n_mlp = 8
+    args = inference_params()
 
     g_ema = Generator(
         args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier
